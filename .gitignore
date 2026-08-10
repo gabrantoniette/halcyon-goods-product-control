@@ -1,0 +1,25 @@
+# Environment files (see .env.example for the expected keys)
+.env
+
+# Local SQLite database - created on first run, never shared
+*.db
+*.db-journal
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Tooling caches
+.ruff_cache/
+.pytest_cache/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

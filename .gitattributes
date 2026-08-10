@@ -1,0 +1,4 @@
+# Shell scripts must keep LF endings even when checked out on Windows: sh reads
+# a CRLF line as if the \r were part of the command, and the hook silently fails.
+.githooks/** text eol=lf
+*.sh text eol=lf

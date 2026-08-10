@@ -1,0 +1,19 @@
+version: 2
+
+updates:
+  # Python dependencies for the project
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # One PR for routine bumps instead of one per package.
+      python-minor-and-patch:
+        update-types: [minor, patch]
+
+  # The actions used by the workflows themselves
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
