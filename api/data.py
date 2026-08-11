@@ -8,7 +8,7 @@ to add a batch of new items.
 
 from pathlib import Path
 
-from sqlmodel import create_engine, Session, SQLModel
+from sqlmodel import Session, SQLModel, create_engine
 
 # Anchored to this file, not to the working directory: launching uvicorn from
 # somewhere else would otherwise quietly create a second, empty database.

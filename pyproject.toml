@@ -1,0 +1,35 @@
+# Tooling configuration only - the project is run from main.py, not installed
+# as a package, so there is no [project] table here. Runtime dependencies stay
+# in requirements.txt and the test/lint ones in requirements-dev.txt.
+
+[tool.pytest.ini_options]
+# The suite imports `api` and `client` from the project root.
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "--strict-markers --strict-config"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = ["venv", ".venv"]
+
+[tool.ruff.lint]
+# pycodestyle, pyflakes, isort, flake8-bugbear, pyupgrade, comprehensions.
+select = ["E", "W", "F", "I", "B", "UP", "C4"]
+
+[tool.ruff.lint.flake8-bugbear]
+# Calling these in an argument default is how FastAPI declares a parameter, so
+# B008 does not apply to them.
+extend-immutable-calls = [
+    "fastapi.Body",
+    "fastapi.Depends",
+    "fastapi.File",
+    "fastapi.Form",
+    "fastapi.Header",
+    "fastapi.Path",
+    "fastapi.Query",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests reach for the module-private helpers they are covering on purpose.
+"tests/*" = ["SLF001"]

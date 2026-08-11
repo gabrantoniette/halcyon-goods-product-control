@@ -5,11 +5,13 @@ make an update or a delete ambiguous.
 """
 
 from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import func
 from sqlmodel import Session, select
+
 from .data import get_session
-from .model import Product, ProductDelete, ProductPatch, ProductCreate, ProductUpdate, ProductRead
+from .model import Product, ProductCreate, ProductDelete, ProductPatch, ProductRead, ProductUpdate
 
 router = APIRouter(
     prefix="/products",
@@ -76,10 +78,10 @@ async def list_products(
 
 @router.get("/{product_name}", response_model=ProductRead)
 async def get_products_by_name(product_name: str, session: SessionDep) -> ProductRead:
-    
+
     if products := session.exec(select(Product).where(Product.name == product_name)).first():
         return ProductRead.model_validate(products)
-    
+
     raise HTTPException(status_code=404, detail="No product found with the given name")
 
 

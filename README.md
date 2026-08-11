@@ -1,5 +1,7 @@
 # Halcyon Goods — Internal Product Control
 
+[![CI](https://github.com/gabrantoniette/halcyon-goods-product-control/actions/workflows/ci.yml/badge.svg)](https://github.com/gabrantoniette/halcyon-goods-product-control/actions/workflows/ci.yml)
+
 Internal back-office system for controlling a company's products and stock —
 **not a storefront**. There is no cart, no checkout and no customer-facing page.
 **Halcyon Goods** is a fictional company; this is the tool its staff would use to
@@ -49,9 +51,19 @@ vanilla JS and CSS (no framework, no build step).
 │       ├── api_client.py    HTTP calls to the API
 │       ├── http_status.py   response handling and status messages
 │       └── menu.py          terminal interface
+├── tests/                   pytest suite, runs against SQLite in memory
+│   ├── conftest.py          fixtures: in-memory database, API client
+│   ├── test_products_api.py endpoint behaviour and the uniqueness rules
+│   ├── test_pagination.py   paging headers, clamping and ordering
+│   ├── test_api_client.py   the page walk in list_products
+│   ├── test_http_status.py  the response envelope
+│   └── test_web_client.py   the relay between browser and API
+├── .github/workflows/ci.yml lint and tests on every push and pull request
 ├── database.db              created on first run, git-ignored
 ├── .env.example             API_BASE_URL
-└── requirements.txt
+├── pyproject.toml           ruff and pytest configuration
+├── requirements.txt         what the project needs to run
+└── requirements-dev.txt     what it needs to be tested and linted
 ```
 
 ## Setup
@@ -165,6 +177,31 @@ Status is shown with an icon and a word alongside the colour, never colour alone
 green and red are the pair colour-blind readers are least able to separate. The
 amber used for low stock is darkened for text, where the fill colour would not
 clear 4.5:1 on a light surface.
+
+## Tests
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+ruff check .
+```
+
+73 tests, no network and no files touched: every one runs against a SQLite
+database held in memory, so `database.db` is never opened and each test starts
+from an empty register. The suite covers the four layers separately —
+
+| File | What it pins down |
+|---|---|
+| `test_products_api.py` | the endpoints, and the rules that keep names unambiguous: `409` on a duplicate, `422` when path and body disagree, `404` everywhere else |
+| `test_pagination.py` | the `X-Total-*` counters, clamping of an over-large page, and that walking every page yields each item exactly once |
+| `test_api_client.py` | the page walk, including that a failed page aborts it rather than reporting half the register as all of it |
+| `test_http_status.py` | the response envelope, including an unreachable API and a body that is not JSON |
+| `test_web_client.py` | the relay: the API's status code survives the hop, and an unreachable API becomes `503` |
+
+CI runs the same two commands on every push and pull request, across Python
+3.11, 3.12 and 3.13. Linting is `ruff check` only — `ruff format` is not
+enforced, because the source is hand-formatted in a few places where the
+formatter would be harder to read.
 
 ## Contributing
 

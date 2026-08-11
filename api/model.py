@@ -5,9 +5,10 @@ PATCH accepts any subset of its fields, and DELETE answers with a receipt.
 """
 
 from uuid import UUID, uuid4
-from sqlmodel import SQLModel, Field
+
 from pydantic import BaseModel
-from sqlalchemy import Column, JSON
+from sqlalchemy import JSON, Column
+from sqlmodel import Field, SQLModel
 
 
 class ProductBase(SQLModel):

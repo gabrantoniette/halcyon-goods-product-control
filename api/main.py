@@ -1,7 +1,9 @@
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
-from .router import router as products_router
+
 from .data import create_db_and_tables
+from .router import router as products_router
 
 
 @asynccontextmanager
