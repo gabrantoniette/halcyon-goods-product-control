@@ -3,7 +3,9 @@ name = "halcyon-api"
 version = "3.0.0"
 description = "Internal product and stock records API for Halcyon Goods."
 requires-python = ">=3.11"
-license = { file = "../../LICENSE" }
+# An SPDX expression rather than a path: the licence file lives at the repo
+# root, which is outside this app's Docker build context.
+license = "MIT"
 
 # Pinned to the versions this project was built and verified against.
 dependencies = [

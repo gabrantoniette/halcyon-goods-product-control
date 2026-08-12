@@ -17,7 +17,11 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-halcyon}
       POSTGRES_DB: ${POSTGRES_DB:-halcyon}
     volumes:
-      - db-data:/var/lib/postgresql/data
+      # Postgres 18+ wants the mount one level up from the old
+      # /var/lib/postgresql/data: it stores data in a major-version
+      # subdirectory so pg_upgrade --link can work across a mount boundary.
+      # Mounting the old path makes the image refuse to start.
+      - db-data:/var/lib/postgresql
     # Not published by default: only the API needs to reach it. Uncomment to
     # attach a client from the host.
     # ports:

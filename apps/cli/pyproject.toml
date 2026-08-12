@@ -3,7 +3,9 @@ name = "halcyon-cli"
 version = "3.0.0"
 description = "Terminal client for the Halcyon Goods product control API."
 requires-python = ">=3.11"
-license = { file = "../../LICENSE" }
+# An SPDX expression rather than a path: the licence file lives at the repo
+# root, outside this app's packaging directory.
+license = "MIT"
 
 dependencies = [
     "requests==2.34.2",

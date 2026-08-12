@@ -179,13 +179,13 @@ place, so one revision applies to both backends.
 ## Tests
 
 ```bash
-cd apps/api && pytest      # 59
+cd apps/api && pytest      # 69
 cd apps/cli && pytest      # 31
 ruff check .
 cd apps/web && npm run typecheck && npm run lint && npm run build
 ```
 
-90 Python tests, none of which touch the network or a real database: every one
+100 Python tests, none of which touch the network or a real database: every one
 runs against SQLite held in memory, so each starts from an empty register.
 
 | File | What it pins down |
@@ -195,6 +195,7 @@ runs against SQLite held in memory, so each starts from an empty register.
 | `api/tests/test_auth.py` | writes closed, reads open, and that the key is never echoed back |
 | `api/tests/test_health.py` | that the unauthenticated endpoint leaks neither the database URL nor the key |
 | `api/tests/test_migrations.py` | `upgrade head`, then a diff against the models — the rest of the suite builds tables from metadata, which is fast but would pass while the migrations rotted |
+| `api/tests/test_config.py` | the settings read from real environment variables, including the comma-separated list form a `.env` or compose file uses |
 | `cli/tests/test_api_client.py` | the page walk, including that a failed page aborts it |
 | `cli/tests/test_http_status.py` | the response envelope |
 | `cli/tests/test_write_headers.py` | the key on writes, and never on reads |
@@ -263,8 +264,10 @@ values only.
 - The dashboard reads the whole register to compute its totals. That is honest
   at this size and would need server-side aggregates well before it stopped
   being.
-- `docker compose` has not been run against these images from this machine —
-  see the commit history.
+- The Postgres volume is mounted at `/var/lib/postgresql`, not at
+  `/var/lib/postgresql/data`. Postgres 18 stores data in a major-version
+  subdirectory so `pg_upgrade --link` works across the mount boundary, and it
+  refuses to start against the old path.
 
 ## License
 
