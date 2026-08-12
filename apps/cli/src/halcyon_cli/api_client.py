@@ -2,24 +2,27 @@
 
 These functions know how to talk to the API and nothing else - they take plain
 arguments and return the normalised dictionary produced by `try_response`.
-Collecting user input is the caller's job, which is what lets both the terminal
-menu and the web server share this module.
+Collecting user input is the caller's job, which is what keeps this module
+usable from the terminal menu and from a script alike.
 """
 
 import os
-from pathlib import Path
 
 import requests as r
-from dotenv import load_dotenv
+from dotenv import find_dotenv, load_dotenv
 
 from .http_status import try_response
 
-# The .env file lives at the project root (multibrand-store/), two levels up.
-ENV_PATH = Path(__file__).resolve().parents[2] / ".env"
-load_dotenv(ENV_PATH)
+# find_dotenv walks up from this file, so the project's .env is picked up no
+# matter which directory the command was run from.
+load_dotenv(find_dotenv(usecwd=False))
 
 # rstrip so a trailing slash in .env does not produce '//products' below.
-API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+API_BASE_URL = os.getenv("HALCYON_API_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+
+# Only needed when the API has an key configured; reads never require it.
+API_KEY = os.getenv("HALCYON_API_KEY") or None
+API_KEY_HEADER = "X-API-Key"
 
 # Without a timeout a hung server would freeze the menu and the web request.
 TIMEOUT = 5
@@ -29,10 +32,15 @@ def _url(*parts):
     return "/".join([API_BASE_URL, "products", *[str(part) for part in parts]])
 
 
+def _write_headers():
+    """The key, when one is configured. Reads go without it."""
+    return {API_KEY_HEADER: API_KEY} if API_KEY else {}
+
+
 def is_api_up():
     """Cheap health check used before opening the UI."""
     try:
-        r.get(_url(), timeout=2)
+        r.get(f"{API_BASE_URL}/health", timeout=2)
     except r.RequestException:
         return False
     return True
@@ -82,18 +90,18 @@ def get_products_by_name(name):
 
 
 def create_product(name, product_data):
-    return try_response(r.post(_url(name), json=product_data, timeout=TIMEOUT))
+    return try_response(r.post(_url(name), json=product_data, headers=_write_headers(), timeout=TIMEOUT))
 
 
 def replace_product(name, product_data):
     """Full update (PUT): every field must be present in the body."""
-    return try_response(r.put(_url(name), json=product_data, timeout=TIMEOUT))
+    return try_response(r.put(_url(name), json=product_data, headers=_write_headers(), timeout=TIMEOUT))
 
 
 def update_product_fields(name, product_data):
     """Partial update (PATCH): only the changed fields are sent."""
-    return try_response(r.patch(_url(name), json=product_data, timeout=TIMEOUT))
+    return try_response(r.patch(_url(name), json=product_data, headers=_write_headers(), timeout=TIMEOUT))
 
 
 def delete_product(name):
-    return try_response(r.delete(_url(name), timeout=TIMEOUT))
+    return try_response(r.delete(_url(name), headers=_write_headers(), timeout=TIMEOUT))

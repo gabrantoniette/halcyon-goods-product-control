@@ -9,7 +9,7 @@ import json
 import pytest
 import requests
 
-from client.backend.http_status import describe_status, detail_of, read_body, try_response
+from halcyon_cli.http_status import describe_status, detail_of, read_body, try_response
 
 ENVELOPE_KEYS = {"success", "status_code", "message", "detail", "data"}
 

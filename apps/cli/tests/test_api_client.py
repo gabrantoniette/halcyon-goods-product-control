@@ -7,7 +7,7 @@ a page fails is the behaviour worth pinning down.
 
 import requests
 
-from client.backend import api_client
+from halcyon_cli import api_client
 
 
 def envelope(data=None, success=True, status_code=200):

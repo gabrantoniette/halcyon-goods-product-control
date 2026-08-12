@@ -1,7 +1,7 @@
-"""Shared fixtures for the test suite.
+"""Shared fixtures for the API test suite.
 
 Every test runs against a SQLite database held in memory, so the suite never
-touches `database.db` and each test starts from an empty register.
+touches a real database and each test starts from an empty register.
 """
 
 import pytest
@@ -9,8 +9,11 @@ from fastapi.testclient import TestClient
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine
 
-from api.data import get_session
-from api.main import app as api_app
+from halcyon_api.config import Settings, get_settings
+from halcyon_api.db import get_session
+from halcyon_api.main import app
+
+API_KEY = "test-key"
 
 
 @pytest.fixture(name="session")
@@ -20,6 +23,10 @@ def session_fixture():
     StaticPool keeps every connection pointed at the same in-memory database:
     without it SQLite would hand out a new, empty one per connection and the
     tables created here would be invisible to the request under test.
+
+    The tables are built from the metadata rather than by running Alembic,
+    which keeps the suite fast; `test_migrations.py` is what proves the
+    migrations and the models still agree.
     """
     engine = create_engine(
         "sqlite://",
@@ -35,19 +42,45 @@ def session_fixture():
     engine.dispose()
 
 
+@pytest.fixture(name="settings")
+def settings_fixture():
+    """Settings for a test run: in-memory database, authentication off."""
+    return Settings(database_url="sqlite://", api_key=None, environment="test")
+
+
 @pytest.fixture(name="client")
-def client_fixture(session):
-    """A client for the records API, wired to the in-memory session.
+def client_fixture(session, settings):
+    """A client for the API, wired to the in-memory session."""
+    app.dependency_overrides[get_session] = lambda: session
+    app.dependency_overrides[get_settings] = lambda: settings
 
-    TestClient is deliberately not used as a context manager: entering it would
-    run the app's lifespan, and that calls `create_db_and_tables()` against the
-    real file engine, creating `database.db` as a side effect of the tests.
+    yield TestClient(app)
+
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture(name="api_key")
+def api_key_fixture():
+    """The key `secured_client` is configured with."""
+    return API_KEY
+
+
+@pytest.fixture(name="secured_client")
+def secured_client_fixture(session):
+    """A client for an API that has a key configured, so writes are closed.
+
+    Mutually exclusive with `client`: both write to the same
+    app.dependency_overrides, so a test that asks for both gets whichever was
+    built last for both names. Use one or the other.
     """
-    api_app.dependency_overrides[get_session] = lambda: session
+    secured = Settings(database_url="sqlite://", api_key=API_KEY, environment="test")
 
-    yield TestClient(api_app)
+    app.dependency_overrides[get_session] = lambda: session
+    app.dependency_overrides[get_settings] = lambda: secured
 
-    api_app.dependency_overrides.clear()
+    yield TestClient(app)
+
+    app.dependency_overrides.clear()
 
 
 @pytest.fixture(name="make_product")

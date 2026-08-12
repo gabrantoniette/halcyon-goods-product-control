@@ -1,0 +1,37 @@
+[project]
+name = "halcyon-api"
+version = "3.0.0"
+description = "Internal product and stock records API for Halcyon Goods."
+requires-python = ">=3.11"
+license = { file = "../../LICENSE" }
+
+# Pinned to the versions this project was built and verified against.
+dependencies = [
+    "fastapi==0.141.1",
+    "sqlmodel==0.0.39",
+    "SQLAlchemy==2.0.51",
+    "pydantic==2.13.4",
+    "pydantic-settings==2.15.0",
+    "uvicorn[standard]==0.52.1",
+    "alembic==1.19.1",
+    # The binary wheel avoids needing libpq and a compiler in the image.
+    "psycopg[binary]==3.3.4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.1.1",
+    "httpx==0.28.1",  # required by fastapi.testclient
+    "ruff==0.16.2",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/halcyon_api"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers --strict-config"

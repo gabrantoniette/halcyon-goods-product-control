@@ -10,7 +10,18 @@ from uuid import UUID
 import pytest
 
 # The stored row carries an `id` primary key, but ProductRead does not expose it.
-PUBLIC_FIELDS = {"name", "category", "price", "stock", "in_stock", "rating", "tags", "uuid"}
+PUBLIC_FIELDS = {
+    "name",
+    "category",
+    "price",
+    "stock",
+    "in_stock",
+    "rating",
+    "tags",
+    "uuid",
+    "created_at",
+    "updated_at",
+}
 
 
 # ------------------------------------------------------------------- create
