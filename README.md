@@ -18,6 +18,12 @@ three operations seen from Postgres, and the stack booting from an empty volume
 — is in [docs/screenshots](docs/screenshots), with each capture explained in
 [DESCRIPTIONS.txt](docs/screenshots/DESCRIPTIONS.txt).
 
+**New to the project?** [docs/guide](docs/guide) walks through it from the
+beginning — what it does, how the pieces fit, every step from starting it to
+shutting it down, and a glossary of every term used. Three diagrams come with
+it, including [the full architecture](docs/guide/diagrams/01-architecture.png)
+and [the lifecycle from one command to nothing](docs/guide/diagrams/02-lifecycle.png).
+
 ## Architecture
 
 ```
