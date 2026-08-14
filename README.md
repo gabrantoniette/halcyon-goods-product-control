@@ -53,7 +53,8 @@ Tailwind v4 · Zod · Docker Compose.
 │   │   │   ├── routers/         HTTP translation only
 │   │   │   └── services/        the rules, and the domain errors
 │   │   ├── migrations/          Alembic
-│   │   ├── tests/               59 tests
+│   │   ├── tests/               69 tests
+│   │   ├── seed.py              an example catalogue, 100 products
 │   │   └── Dockerfile
 │   │
 │   ├── web/                     the dashboard
@@ -175,6 +176,31 @@ alembic check            # fails if the models and the migrations disagree
 never be applied to a different database than the one the API talks to.
 Revisions run in batch mode on SQLite, which cannot `ALTER` most things in
 place, so one revision applies to both backends.
+
+### Example data
+
+An empty register makes the dashboard hard to judge, so `seed.py` loads a
+catalogue of 100 products across eight categories.
+
+```bash
+cd apps/api
+python seed.py                              # local, whichever URL is configured
+python seed.py --reset                      # empty the register first
+
+docker compose exec api python seed.py      # the compose database
+```
+
+It follows `HALCYON_DATABASE_URL` like everything else, and prints where it is
+writing with the password masked. Products are matched by name, the unique
+column, so a second run inserts nothing — which also makes it a way to find out
+what has been deleted, since the count it reports as added is exactly that.
+
+Prices, stock, ratings and dates are generated from a fixed seed rather than
+typed out, so two runs produce the same register. The stock states are dealt
+from a fixed pool instead of rolled per product, so the counts are exact and
+every dashboard filter and badge has something to show. Nothing here creates a
+table: `alembic upgrade head` has to have run first, and the script stops with
+that instruction if it has not.
 
 ## Tests
 

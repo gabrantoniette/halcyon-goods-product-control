@@ -22,10 +22,15 @@ services:
       # subdirectory so pg_upgrade --link can work across a mount boundary.
       # Mounting the old path makes the image refuse to start.
       - db-data:/var/lib/postgresql
-    # Not published by default: only the API needs to reach it. Uncomment to
-    # attach a client from the host.
-    # ports:
-    #   - "5432:5432"
+    # Bound to the loopback address, and on 5433 rather than 5432: a Postgres
+    # installed on the host usually holds that port already, and this is a
+    # different database. Without the 127.0.0.1 prefix Docker would publish on
+    # every interface, which puts a database carrying the default credentials
+    # in front of anyone on the same network. Nothing in the stack needs the
+    # mapping - the API reaches this container as db:5432 over the compose
+    # network - it is here so a client on the host can attach.
+    ports:
+      - "127.0.0.1:5433:5432"
     healthcheck:
       # The user is passed explicitly; pg_isready would otherwise look for a
       # role named "root" and report the database as down forever.

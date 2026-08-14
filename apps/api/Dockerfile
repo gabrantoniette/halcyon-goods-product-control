@@ -42,6 +42,10 @@ WORKDIR /app
 COPY alembic.ini ./
 COPY migrations ./migrations
 COPY src ./src
+# Not needed to serve, but it is the only way to load the example catalogue
+# into the compose database: the volume is private to the stack, so there is
+# no host-side path to it unless the port is published.
+COPY seed.py ./
 
 USER halcyon
 
