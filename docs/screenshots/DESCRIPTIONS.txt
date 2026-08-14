@@ -1,0 +1,318 @@
+===============================================================================
+HALCYON GOODS - INTERNAL PRODUCT CONTROL
+Screenshot descriptions
+===============================================================================
+
+Repository: https://github.com/gabrantoniette/halcyon-goods-product-control
+Captured:   14 August 2026
+Running:    Docker Compose (Postgres 18 + FastAPI + Next.js 16)
+
+Architecture:
+
+    Browser  -->  Next.js server  -->  records API  -->  Postgres
+                  (holds the key)      (checks it)
+
+The browser never talks to the API directly. Next.js reads the register on the
+server and ships finished HTML; the API key stays on the server and never
+reaches the client.
+
+
+===============================================================================
+1. THE DASHBOARD
+===============================================================================
+
+-------------------------------------------------------------------------------
+01-dashboard-overview-dark.png
+-------------------------------------------------------------------------------
+SHORT CAPTION:
+Stock control dashboard holding 100 registered items, rendered on the server by
+Next.js 16 (App Router).
+
+TECHNICAL DESCRIPTION:
+An overview of the whole register. The six tiles across the top - items
+registered, available, low stock, out of stock, total value and average rating
+- are computed over the entire register rather than the visible page. The
+client walks every page of the API before it sums anything, because half the
+register reported as all of it would make every total wrong.
+
+The items-per-category chart keeps a single hue across all bars: the categories
+are nominal, so shading them by size would encode the length twice.
+
+Visible distribution: 70 available, 18 low stock, 12 out of stock - exactly the
+distribution defined in the example catalogue, which confirms the data survived
+the trip through the API, the database and the client intact.
+
+-------------------------------------------------------------------------------
+02-dashboard-overview-light.png
+-------------------------------------------------------------------------------
+SHORT CAPTION:
+The same dashboard in its light theme.
+
+TECHNICAL DESCRIPTION:
+The theme is read with useSyncExternalStore rather than mirrored into state
+with an effect. It genuinely is external - it lives in documentElement, in
+localStorage and in the operating system preference. The effect version both
+tripped the lint rule and risked a visible theme flip during hydration.
+
+
+===============================================================================
+2. REGISTERING A NEW ITEM
+===============================================================================
+
+-------------------------------------------------------------------------------
+03-register-dialog-filled.png
+-------------------------------------------------------------------------------
+SHORT CAPTION:
+The registration form, filled in, with per-field validation.
+
+TECHNICAL DESCRIPTION:
+A native modal dialog over the dashboard. Every field is validated twice: by
+Zod on the Next.js server before the call goes out, and by Pydantic in the API.
+The duplication is deliberate - client-side validation exists to give a useful
+message, server-side validation exists because the client cannot be trusted.
+
+Item used throughout the walkthrough: Thermal Label Printer, category
+Peripherals, unit cost 289.90, quantity 24, rating 4.6.
+
+-------------------------------------------------------------------------------
+04-register-confirmation.png
+-------------------------------------------------------------------------------
+SHORT CAPTION:
+Item registered. Every counter on the dashboard moves with it.
+
+TECHNICAL DESCRIPTION:
+This is the capture that proves the whole write path. Compare it with 01:
+
+    Items registered      100  ->  101
+    Available              70  ->   71
+    Peripherals            14  ->   15
+    "Showing 100 of 100"       ->  "Showing 101 of 101"
+
+The write left a Next.js Server Action, reached the API carrying the X-API-Key
+header, was committed to Postgres, and the dashboard was revalidated on the
+server. The browser never touched the API and never saw the key.
+
+
+===============================================================================
+3. UPDATING
+===============================================================================
+
+-------------------------------------------------------------------------------
+05-item-in-register.png
+-------------------------------------------------------------------------------
+SHORT CAPTION:
+Search locating the newly registered item.
+
+TECHNICAL DESCRIPTION:
+Search matches on name, category or tag. The filter, the tiles and the chart
+all read the same slice of data, so they can never disagree with each other.
+
+-------------------------------------------------------------------------------
+06-quick-edit-dialog.png
+-------------------------------------------------------------------------------
+SHORT CAPTION:
+Quick edit: only the fields that actually changed are sent.
+
+TECHNICAL DESCRIPTION:
+The system offers two distinct editing modes, mapped onto the right HTTP verbs:
+
+    "Edit"        -> PUT   - replaces the whole item, every field required
+    "Quick edit"  -> PATCH - sends only what changed
+
+Here the unit cost drops from 289.90 to 249.00 and the quantity from 24 to 6.
+The body sent to the API carries only those two fields. If nothing changed, no
+request is made at all - which keeps updated_at meaning "last actually
+modified" rather than "last time someone opened the form".
+
+-------------------------------------------------------------------------------
+07-update-confirmation.png
+-------------------------------------------------------------------------------
+SHORT CAPTION:
+The change applied, and reflected across the dashboard.
+
+TECHNICAL DESCRIPTION:
+With the quantity at 6, the item crosses the low-stock threshold (10 or fewer)
+and changes state. The badge becomes "Low stock" with a glyph and a word, not
+just a colour: green and red are precisely the pair colour-blind readers are
+least able to separate, so every state carries a symbol and a label too.
+
+
+===============================================================================
+4. REMOVING
+===============================================================================
+
+-------------------------------------------------------------------------------
+08-remove-confirmation-dialog.png
+-------------------------------------------------------------------------------
+SHORT CAPTION:
+Confirmation before removal - the action cannot be undone.
+
+TECHNICAL DESCRIPTION:
+The system keeps no change history: a removal deletes the row and leaves no
+trace in the database. That is why the confirmation exists.
+
+-------------------------------------------------------------------------------
+09-remove-confirmation.png
+-------------------------------------------------------------------------------
+SHORT CAPTION:
+Item removed. The register is back to 100 items.
+
+TECHNICAL DESCRIPTION:
+Every counter returns to the state of capture 01, and Peripherals goes from 15
+back to 14. The search filter is still applied, so the table shows its empty
+state ("No items found") rather than a table with no rows - the difference
+between "nothing matches this search" and "there is no data" matters to whoever
+is using it.
+
+
+===============================================================================
+5. THE DATABASE (PostgreSQL 18)
+===============================================================================
+
+-------------------------------------------------------------------------------
+10-postgres-create.png
+-------------------------------------------------------------------------------
+SHORT CAPTION:
+The same operation seen from the database: 100 rows, POST, 101 rows.
+
+TECHNICAL DESCRIPTION:
+A direct query against Postgres inside the container, before and after the
+write. The API answers HTTP 201 Created and the row appears with every field
+typed.
+
+The API key is redacted as $env:HALCYON_API_KEY - it is never exposed in a
+screenshot, a log or the HTML.
+
+-------------------------------------------------------------------------------
+11-postgres-update.png
+-------------------------------------------------------------------------------
+SHORT CAPTION:
+What a PATCH moves, and what it deliberately leaves alone.
+
+TECHNICAL DESCRIPTION:
+The most informative capture of the set. After the partial update it shows:
+
+    price       289.90  ->  249.00     changed
+    stock           24  ->       6     changed
+    created_at  23:00:35.920813        UNCHANGED
+    updated_at  23:00:35.921068  ->  23:00:36.874228
+
+The timestamps come back from Postgres carrying their UTC offset (+00). The
+column is declared with timezone=True on purpose: a naive column would silently
+drop the offset and the timestamps would stop being comparable across
+deployments.
+
+-------------------------------------------------------------------------------
+12-postgres-delete.png
+-------------------------------------------------------------------------------
+SHORT CAPTION:
+The removal confirmed in the database: (0 rows).
+
+TECHNICAL DESCRIPTION:
+The query that returned the row now returns (0 rows), and the total count is
+back to 100.
+
+
+===============================================================================
+6. INFRASTRUCTURE (Docker)
+===============================================================================
+
+-------------------------------------------------------------------------------
+13-container-stack.png
+-------------------------------------------------------------------------------
+SHORT CAPTION:
+Three containerised services, each with its own healthcheck.
+
+TECHNICAL DESCRIPTION:
+Postgres, the API and the dashboard, each reporting its own health. Both images
+use multi-stage builds and run as a non-root user, so a container escape does
+not begin with root.
+
+The database port is published on the loopback addresses only (127.0.0.1 and
+::1), for local inspection with pgAdmin. Nothing in the stack needs that
+mapping - the containers reach each other over the compose network.
+
+-------------------------------------------------------------------------------
+14-container-first-boot.png
+-------------------------------------------------------------------------------
+SHORT CAPTION:
+From an empty volume to a running, populated stack, in one command.
+
+TECHNICAL DESCRIPTION:
+From an engineering standpoint, the most important capture of the set. It
+shows, in real sequence:
+
+  1. The volume being destroyed - the database ceases to exist
+  2. The startup chain honouring its dependencies:
+         db Started -> db Healthy -> api Started -> api Healthy -> web Started
+     Postgres is "running" about a second before it accepts connections, and
+     that gap is what breaks stacks that start everything at once.
+  3. Alembic applying the migration during the API's boot, against Postgres
+     ("PostgresqlImpl", not SQLite), creating the table from nothing
+  4. The example catalogue loading: 100 products across 8 categories
+
+No manual step anywhere. The same command works on an empty volume and on an
+already-migrated one.
+
+-------------------------------------------------------------------------------
+15-container-request-log.png
+-------------------------------------------------------------------------------
+SHORT CAPTION:
+Every write the API served, and how it answered.
+
+TECHNICAL DESCRIPTION:
+    POST   -> 201 Created
+    PATCH  -> 200 OK
+    DELETE -> 200 OK
+    DELETE without the key -> 401 Unauthorized
+
+That last line is the security demonstration: reads are open, but every write
+requires the X-API-Key header. The key is compared with secrets.compare_digest
+rather than ==, so a wrong key cannot be discovered one character at a time by
+timing the response.
+
+
+===============================================================================
+SUGGESTED TEXT FOR THE LINKEDIN PROJECTS SECTION
+===============================================================================
+
+Halcyon Goods - Internal Product Control
+
+A stock control system built as a monorepo: three applications over a single
+records API - a web dashboard, a terminal client, and the service that owns the
+data.
+
+The backend is FastAPI and SQLModel, with schema changes versioned in Alembic.
+Nothing in the application creates tables, so a deployment can never drift away
+from the migration history without someone noticing. The frontend is Next.js 16
+on the App Router: Server Components read the register and Server Actions
+change it, which keeps the API key on the server and out of the browser -
+enforced at build time by the server-only package rather than by convention.
+
+The whole stack starts with one command through Docker Compose, with
+multi-stage builds, non-root users, healthchecks and dependency-ordered
+startup. CI on GitHub Actions covers linting, the API suite across three Python
+versions, the terminal client's suite, the migrations applied and rolled back
+against a real Postgres service, and the frontend's production build.
+
+100 automated tests. Stack: Python, FastAPI, SQLModel, Alembic, Postgres,
+TypeScript, Next.js, React, Docker, GitHub Actions.
+
+
+===============================================================================
+NOTES ON THE CAPTURES
+===============================================================================
+
+- Captures 01 to 09 are real browser screenshots, taken by driving the running
+  dashboard with Playwright against the containerised stack.
+
+- Captures 10 to 15 are terminal-styled renderings of the REAL output of those
+  commands, captured as they ran. The text was neither typed nor edited; only
+  the API key was redacted.
+
+- The operations behind captures 10 to 12 were performed through the API (curl)
+  rather than the dashboard, so that psql output could be captured at the exact
+  before and after moments. They are the same operations, the same values and
+  the same code path as captures 03 to 09.
+
+- The register was left in its clean 100-product state.
