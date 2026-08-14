@@ -1,0 +1,75 @@
+# The whole stack: Postgres, the records API and the web dashboard.
+#
+#     cp .env.example .env
+#     docker compose up --build
+#
+# The dashboard is then on http://localhost:3000 and the API docs on
+# http://localhost:8000/docs.
+
+name: halcyon-goods
+
+services:
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-halcyon}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-halcyon}
+      POSTGRES_DB: ${POSTGRES_DB:-halcyon}
+    volumes:
+      # Postgres 18+ wants the mount one level up from the old
+      # /var/lib/postgresql/data: it stores data in a major-version
+      # subdirectory so pg_upgrade --link can work across a mount boundary.
+      # Mounting the old path makes the image refuse to start.
+      - db-data:/var/lib/postgresql
+    # Bound to the loopback address, and on 5433 rather than 5432: a Postgres
+    # installed on the host usually holds that port already, and this is a
+    # different database. Without the 127.0.0.1 prefix Docker would publish on
+    # every interface, which puts a database carrying the default credentials
+    # in front of anyone on the same network. Nothing in the stack needs the
+    # mapping - the API reaches this container as db:5432 over the compose
+    # network - it is here so a client on the host can attach.
+    ports:
+      - "127.0.0.1:5433:5432"
+    healthcheck:
+      # The user is passed explicitly; pg_isready would otherwise look for a
+      # role named "root" and report the database as down forever.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-halcyon} -d ${POSTGRES_DB:-halcyon}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: ./apps/api
+    restart: unless-stopped
+    environment:
+      HALCYON_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-halcyon}:${POSTGRES_PASSWORD:-halcyon}@db:5432/${POSTGRES_DB:-halcyon}
+      HALCYON_API_KEY: ${HALCYON_API_KEY:-}
+      HALCYON_ENVIRONMENT: ${HALCYON_ENVIRONMENT:-docker}
+      HALCYON_CORS_ORIGINS: ${HALCYON_CORS_ORIGINS:-http://localhost:3000}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        # The API runs `alembic upgrade head` before serving, so it must not
+        # start until Postgres is actually accepting connections.
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./apps/web
+    restart: unless-stopped
+    environment:
+      # Reached over the compose network, not through the published port.
+      HALCYON_API_BASE_URL: http://api:8000
+      # Read on the server only; it never reaches the browser.
+      HALCYON_API_KEY: ${HALCYON_API_KEY:-}
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  db-data:

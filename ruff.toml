@@ -1,0 +1,27 @@
+# Lint configuration for both Python apps. Each app owns its dependencies in
+# its own pyproject.toml; style is shared, so it lives here at the root.
+
+line-length = 120
+target-version = "py311"
+extend-exclude = ["venv", ".venv", "apps/api/migrations/versions"]
+
+[lint]
+# pycodestyle, pyflakes, isort, flake8-bugbear, pyupgrade, comprehensions.
+select = ["E", "W", "F", "I", "B", "UP", "C4"]
+
+[lint.flake8-bugbear]
+# Calling these in an argument default is how FastAPI declares a parameter, so
+# B008 does not apply to them.
+extend-immutable-calls = [
+    "fastapi.Body",
+    "fastapi.Depends",
+    "fastapi.File",
+    "fastapi.Form",
+    "fastapi.Header",
+    "fastapi.Path",
+    "fastapi.Query",
+    "fastapi.Security",
+]
+
+[lint.isort]
+known-first-party = ["halcyon_api", "halcyon_cli"]

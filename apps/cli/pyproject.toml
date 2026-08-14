@@ -1,0 +1,33 @@
+[project]
+name = "halcyon-cli"
+version = "3.0.0"
+description = "Terminal client for the Halcyon Goods product control API."
+requires-python = ">=3.11"
+# An SPDX expression rather than a path: the licence file lives at the repo
+# root, outside this app's packaging directory.
+license = "MIT"
+
+dependencies = [
+    "requests==2.34.2",
+    "python-dotenv==1.2.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.1.1",
+    "ruff==0.16.2",
+]
+
+[project.scripts]
+halcyon = "halcyon_cli.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/halcyon_cli"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers --strict-config"

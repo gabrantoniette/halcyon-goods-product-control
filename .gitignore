@@ -14,6 +14,17 @@ venv/
 .venv/
 env/
 
+# Python packaging
+*.egg-info/
+build/
+dist/
+
+# Node / Next.js
+node_modules/
+.next/
+next-env.d.ts
+*.tsbuildinfo
+
 # Tooling caches
 .ruff_cache/
 .pytest_cache/
