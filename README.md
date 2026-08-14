@@ -11,10 +11,12 @@ restocking.
 Built end to end as a study of how a REST API and the clients that consume it fit
 together: one HTTP contract, two interfaces — a web dashboard and a terminal menu.
 
-![Stock overview](docs/screenshots/01-dashboard-light.png)
+![Stock overview](docs/screenshots/01-dashboard-overview-dark.png)
 
-> The screenshots above are from the v2 UI. The dashboard has since been rebuilt
-> in Next.js; the layout and the rules are the same.
+The rest of the system — registering, updating and removing an item, the same
+three operations seen from Postgres, and the stack booting from an empty volume
+— is in [docs/screenshots](docs/screenshots), with each capture explained in
+[DESCRIPTIONS.txt](docs/screenshots/DESCRIPTIONS.txt).
 
 ## Architecture
 
