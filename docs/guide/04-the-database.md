@@ -58,6 +58,32 @@ settled decision, not an open problem.
 The threshold of 10 is a warehouse rule, not a database field, so it is defined
 once in the dashboard and derived from `stock` everywhere it is needed.
 
+> **What this did not change: the meaning of the column.** `in_stock = false`
+> has always meant "withdrawn from service" — that is what this page said before
+> the fourth state existed. Nothing needs migrating, because no stored value
+> changed meaning; what changed is that the screen stopped throwing the
+> distinction away.
+>
+> The example catalogue was the thing that had it wrong. `seed.py` used to set
+> `in_stock = false` on every out-of-stock item, empty shelves included, which
+> contradicted this page and made ten rows unreadable under either rule. That is
+> fixed: an empty shelf is now `stock = 0, in_stock = true`.
+>
+> If a register of your own was filled in following that pattern, the rows to
+> look at are the ones where the two readings coincide. Nothing can decide them
+> for you — the information was never recorded — so this lists them rather than
+> guessing:
+>
+> ```sql
+> select name, category, updated_at from product
+> where not in_stock and stock = 0 order by name;
+> ```
+>
+> Each one is either an empty shelf on a line still in service (`in_stock` back
+> to true) or a withdrawn line that also happens to be empty (leave it). Rows
+> with `not in_stock and stock > 0` need nothing: they were unambiguous all
+> along.
+
 **`stock_counted_at` is how old the quantity is**, and it exists because
 `updated_at` cannot answer that. `updated_at` moves whenever the row is written
 — a corrected price, a new tag — so it would report a quantity nobody has

@@ -4,7 +4,7 @@ Screenshot descriptions
 ===============================================================================
 
 Repository: https://github.com/gabrantoniette/halcyon-goods-product-control
-Captured:   01 to 09 and 16 on 18 August 2026; 10 to 15 on 14 August 2026
+Captured:   18 August 2026
 Running:    Docker Compose (Postgres 18 + FastAPI + Next.js 16)
 
 Architecture:
@@ -218,6 +218,10 @@ typed.
 The API key is redacted as $env:HALCYON_API_KEY - it is never exposed in a
 screenshot, a log or the HTML.
 
+The body is passed as -d '@product.json' rather than inline. That is not
+cosmetic: PowerShell mangles the quoting of a JSON argument handed to a native
+executable, and the API answers the result with a 422.
+
 -------------------------------------------------------------------------------
 11-postgres-update.png
 -------------------------------------------------------------------------------
@@ -225,12 +229,31 @@ SHORT CAPTION:
 What a PATCH moves, and what it deliberately leaves alone.
 
 TECHNICAL DESCRIPTION:
-The most informative capture of the set. After the partial update it shows:
+The most informative capture of the set. Two PATCHes, and the difference
+between them is the whole point of the stock_counted_at column.
 
-    price       289.90  ->  249.00     changed
-    stock           24  ->       6     changed
-    created_at  23:00:35.920813        UNCHANGED
-    updated_at  23:00:35.921068  ->  23:00:36.874228
+The first carries only the price:
+
+    price             289.90            ->  249.00            changed
+    stock                 24                                  untouched
+    updated_at        20:16:36.431583   ->  20:16:38.401566   moved
+    stock_counted_at  20:16:36.431446                         UNCHANGED
+
+Nobody went to the shelf, so the quantity is exactly as old as it was. This is
+the case updated_at cannot express: it moved, as it should, because the row was
+written - and if the dashboard read that column for freshness it would now be
+reporting a stale figure as freshly established.
+
+The second carries the quantity:
+
+    stock                  24           ->  6                 changed
+    updated_at        20:16:38.401566   ->  20:16:39.742887   moved
+    stock_counted_at  20:16:36.431446   ->  20:16:39.742887   moved
+
+Both land on the same instant, because establishing a quantity is also writing
+the row. A PATCH that restated stock as 24 would have moved neither: a write
+that repeats a figure establishes nothing, and letting it pass as a count is
+how a number nobody checked comes back looking fresh.
 
 The timestamps come back from Postgres carrying their UTC offset (+00). The
 column is declared with timezone=True on purpose: a naive column would silently
@@ -256,12 +279,14 @@ back to 100.
 13-container-stack.png
 -------------------------------------------------------------------------------
 SHORT CAPTION:
-Three containerised services, each with its own healthcheck.
+Three containerised services, each with its own healthcheck, and what they
+weigh.
 
 TECHNICAL DESCRIPTION:
 Postgres, the API and the dashboard, each reporting its own health. Both images
 use multi-stage builds and run as a non-root user, so a container escape does
-not begin with root.
+not begin with root. The sizes are the second block: 333MB for the API and
+295MB for the dashboard, neither carrying a compiler or a build cache.
 
 The database port is published on the loopback addresses only (127.0.0.1 and
 ::1), for local inspection with pgAdmin. Nothing in the stack needs that
@@ -282,8 +307,13 @@ shows, in real sequence:
          db Started -> db Healthy -> api Started -> api Healthy -> web Started
      Postgres is "running" about a second before it accepts connections, and
      that gap is what breaks stacks that start everything at once.
-  3. Alembic applying the migration during the API's boot, against Postgres
-     ("PostgresqlImpl", not SQLite), creating the table from nothing
+  3. Alembic applying BOTH migrations during the API's boot, against Postgres
+     ("PostgresqlImpl", not SQLite), in order and from nothing:
+         -> 7e3576b1b6d8, create product table
+         7e3576b1b6d8 -> c41a9f2d7b05, add stock_counted_at
+     This is what the migration chain is for. The second revision is not baked
+     into the first; a database created before it existed converges on the same
+     schema by running the same ordered list.
   4. The example catalogue loading: 100 products across 8 categories
 
 No manual step anywhere. The same command works on an empty volume and on an
@@ -385,14 +415,14 @@ NOTES ON THE CAPTURES
   running dashboard with Playwright against the containerised stack.
 
 - Captures 10 to 15 are terminal-styled renderings of the REAL output of those
-  commands, captured as they ran. The text was neither typed nor edited; only
-  the API key was redacted.
+  commands, captured as they ran. The text was neither typed nor edited. Where
+  output is filtered, the filter is visible in the command line above it, so
+  what is on screen is reproducible from what is on screen. The API key is
+  referenced as $env:HALCYON_API_KEY throughout and its value appears nowhere.
 
-- Captures 10 to 15 are from the earlier session and were NOT retaken. They
-  remain accurate about what they show - the write path, the migration on an
-  empty volume, the request log - but they predate the stock_counted_at column,
-  so the row printed in capture 11 is missing it. The counts they show (100
-  products, 8 categories) are unchanged.
+- The whole set was retaken for this version. Captures 10 to 15 were rerun
+  against a stack booted from an empty volume, which is why capture 14 now
+  shows both migrations applying in order rather than one.
 
 - The operations behind captures 10 to 12 were performed through the API (curl)
   rather than the dashboard, so that psql output could be captured at the exact
