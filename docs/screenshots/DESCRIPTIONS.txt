@@ -4,7 +4,7 @@ Screenshot descriptions
 ===============================================================================
 
 Repository: https://github.com/gabrantoniette/halcyon-goods-product-control
-Captured:   14 August 2026
+Captured:   18 August 2026
 Running:    Docker Compose (Postgres 18 + FastAPI + Next.js 16)
 
 Architecture:
@@ -29,18 +29,37 @@ Stock control dashboard holding 100 registered items, rendered on the server by
 Next.js 16 (App Router).
 
 TECHNICAL DESCRIPTION:
-An overview of the whole register. The six tiles across the top - items
-registered, available, low stock, out of stock, total value and average rating
-- are computed over the entire register rather than the visible page. The
-client walks every page of the API before it sums anything, because half the
-register reported as all of it would make every total wrong.
+An overview of the whole register. The eight tiles across the top are computed
+over the entire register rather than the visible page. The client walks every
+page of the API before it sums anything, because half the register reported as
+all of it would make every total wrong.
+
+Four of the tiles are stock states, and the pair worth looking at is "Out of
+stock" (9) and "Withdrawn" (5). They are not the same event and they are not
+the same instruction:
+
+    Out of stock   in service, nothing on hand   a supply problem - reorder
+    Withdrawn      out of service, any quantity  a decision - do not buy
+
+The five withdrawn lines are holding $67.2K of stock between them, which is
+why the tile says so: it is on hand, it is real, and it is not to be issued.
+An earlier version of this dashboard showed both states as one red "Out of
+stock" badge, so the register could tell them apart and the screen could not.
+
+"Stale counts" (17) is the fifth number and a different kind of measurement -
+it describes the data rather than the warehouse. It counts quantities nobody
+has confirmed in over 30 days, including three nobody has ever counted. See
+capture 16.
 
 The items-per-category chart keeps a single hue across all bars: the categories
 are nominal, so shading them by size would encode the length twice.
 
-Visible distribution: 70 available, 18 low stock, 12 out of stock - exactly the
-distribution defined in the example catalogue, which confirms the data survived
-the trip through the API, the database and the client intact.
+Visible distribution: 68 available, 18 low stock, 9 out of stock, 5 withdrawn -
+exactly the distribution defined in the example catalogue, which confirms the
+data survived the trip through the API, the database and the client intact.
+
+The table carries a "Counted" column beside the quantity, so a figure and its
+age are read as one fact. Anything past 30 days is amber with a clock glyph.
 
 -------------------------------------------------------------------------------
 02-dashboard-overview-light.png
@@ -74,6 +93,11 @@ message, server-side validation exists because the client cannot be trusted.
 Item used throughout the walkthrough: Thermal Label Printer, category
 Peripherals, unit cost 289.90, quantity 24, rating 4.6.
 
+The checkbox reads "Line is in service", not "available": it records a decision
+about the line, not a restatement of the quantity above it. Unticking it
+withdraws the line whatever the quantity on hand - which is exactly the case a
+check on `stock = 0` alone would miss.
+
 -------------------------------------------------------------------------------
 04-register-confirmation.png
 -------------------------------------------------------------------------------
@@ -84,9 +108,12 @@ TECHNICAL DESCRIPTION:
 This is the capture that proves the whole write path. Compare it with 01:
 
     Items registered      100  ->  101
-    Available              70  ->   71
+    Available              68  ->   69
     Peripherals            14  ->   15
     "Showing 100 of 100"       ->  "Showing 101 of 101"
+
+Stale counts stays at 17. Stating a quantity to register an item is a count, so
+the new row arrives dated and is not among the unconfirmed ones.
 
 The write left a Next.js Server Action, reached the API carrying the X-API-Key
 header, was committed to Postgres, and the dashboard was revalidated on the
@@ -136,6 +163,13 @@ and changes state. The badge becomes "Low stock" with a glyph and a word, not
 just a colour: green and red are precisely the pair colour-blind readers are
 least able to separate, so every state carries a symbol and a label too.
 
+The Counted column now reads "today". That is the second half of the same
+write: the quantity changed, so the date on it moved. Had this PATCH carried
+only the price, the badge and the count date would both have stayed where they
+were - the column tracks the quantity, not the row. A write that restates the
+same quantity deliberately does not count either, because a figure nobody went
+to the shelf to check must not come back looking freshly established.
+
 
 ===============================================================================
 4. REMOVING
@@ -158,8 +192,9 @@ SHORT CAPTION:
 Item removed. The register is back to 100 items.
 
 TECHNICAL DESCRIPTION:
-Every counter returns to the state of capture 01, and Peripherals goes from 15
-back to 14. The search filter is still applied, so the table shows its empty
+Every counter returns to the state of capture 01 - 100 items, 68 available, 18
+low, 9 out of stock, 5 withdrawn, 17 stale counts - and Peripherals goes from
+15 back to 14. The search filter is still applied, so the table shows its empty
 state ("No items found") rather than a table with no rows - the difference
 between "nothing matches this search" and "there is no data" matters to whoever
 is using it.
@@ -183,6 +218,10 @@ typed.
 The API key is redacted as $env:HALCYON_API_KEY - it is never exposed in a
 screenshot, a log or the HTML.
 
+The body is passed as -d '@product.json' rather than inline. That is not
+cosmetic: PowerShell mangles the quoting of a JSON argument handed to a native
+executable, and the API answers the result with a 422.
+
 -------------------------------------------------------------------------------
 11-postgres-update.png
 -------------------------------------------------------------------------------
@@ -190,12 +229,31 @@ SHORT CAPTION:
 What a PATCH moves, and what it deliberately leaves alone.
 
 TECHNICAL DESCRIPTION:
-The most informative capture of the set. After the partial update it shows:
+The most informative capture of the set. Two PATCHes, and the difference
+between them is the whole point of the stock_counted_at column.
 
-    price       289.90  ->  249.00     changed
-    stock           24  ->       6     changed
-    created_at  23:00:35.920813        UNCHANGED
-    updated_at  23:00:35.921068  ->  23:00:36.874228
+The first carries only the price:
+
+    price             289.90            ->  249.00            changed
+    stock                 24                                  untouched
+    updated_at        20:16:36.431583   ->  20:16:38.401566   moved
+    stock_counted_at  20:16:36.431446                         UNCHANGED
+
+Nobody went to the shelf, so the quantity is exactly as old as it was. This is
+the case updated_at cannot express: it moved, as it should, because the row was
+written - and if the dashboard read that column for freshness it would now be
+reporting a stale figure as freshly established.
+
+The second carries the quantity:
+
+    stock                  24           ->  6                 changed
+    updated_at        20:16:38.401566   ->  20:16:39.742887   moved
+    stock_counted_at  20:16:36.431446   ->  20:16:39.742887   moved
+
+Both land on the same instant, because establishing a quantity is also writing
+the row. A PATCH that restated stock as 24 would have moved neither: a write
+that repeats a figure establishes nothing, and letting it pass as a count is
+how a number nobody checked comes back looking fresh.
 
 The timestamps come back from Postgres carrying their UTC offset (+00). The
 column is declared with timezone=True on purpose: a naive column would silently
@@ -221,12 +279,14 @@ back to 100.
 13-container-stack.png
 -------------------------------------------------------------------------------
 SHORT CAPTION:
-Three containerised services, each with its own healthcheck.
+Three containerised services, each with its own healthcheck, and what they
+weigh.
 
 TECHNICAL DESCRIPTION:
 Postgres, the API and the dashboard, each reporting its own health. Both images
 use multi-stage builds and run as a non-root user, so a container escape does
-not begin with root.
+not begin with root. The sizes are the second block: 333MB for the API and
+295MB for the dashboard, neither carrying a compiler or a build cache.
 
 The database port is published on the loopback addresses only (127.0.0.1 and
 ::1), for local inspection with pgAdmin. Nothing in the stack needs that
@@ -247,8 +307,13 @@ shows, in real sequence:
          db Started -> db Healthy -> api Started -> api Healthy -> web Started
      Postgres is "running" about a second before it accepts connections, and
      that gap is what breaks stacks that start everything at once.
-  3. Alembic applying the migration during the API's boot, against Postgres
-     ("PostgresqlImpl", not SQLite), creating the table from nothing
+  3. Alembic applying BOTH migrations during the API's boot, against Postgres
+     ("PostgresqlImpl", not SQLite), in order and from nothing:
+         -> 7e3576b1b6d8, create product table
+         7e3576b1b6d8 -> c41a9f2d7b05, add stock_counted_at
+     This is what the migration chain is for. The second revision is not baked
+     into the first; a database created before it existed converges on the same
+     schema by running the same ordered list.
   4. The example catalogue loading: 100 products across 8 categories
 
 No manual step anywhere. The same command works on an empty volume and on an
@@ -270,6 +335,49 @@ That last line is the security demonstration: reads are open, but every write
 requires the X-API-Key header. The key is compared with secrets.compare_digest
 rather than ==, so a wrong key cannot be discovered one character at a time by
 timing the response.
+
+
+===============================================================================
+7. HOW OLD THE QUANTITY IS
+===============================================================================
+
+-------------------------------------------------------------------------------
+16-stale-counts-filter.png
+-------------------------------------------------------------------------------
+SHORT CAPTION:
+The 17 quantities nobody has confirmed lately, smallest first.
+
+TECHNICAL DESCRIPTION:
+A number with no date on it invites the reader to trust it, and that trust is
+what a stale figure quietly spends. This is the filter that finds them.
+
+The two leading rows are the whole argument:
+
+    Footrest Adjustable   6 on hand   never counted   Low stock
+    Cable Clips Pack      6 on hand   86d ago         Low stock
+
+Both are flagged for restocking. One of them is flagged on a quantity nobody
+has ever established. That is not a supply fact, it is a data fact, and acting
+on the first without knowing the second is how the wrong number ends up driving
+a purchase order.
+
+The column behind it is stock_counted_at. updated_at cannot do this job: it
+moves whenever the row is written at all, so correcting a price would report a
+six-week-old count as fresh. Only a change to the quantity moves the new one.
+It is nullable, and null means "never established" - a different claim from
+"established a long time ago", which is why the migration that added the column
+left existing rows null rather than backfilling a date no count happened on.
+Both read as stale here, because an undated figure is not a fresh one.
+
+Note the two controls in the toolbar. "Stock status" and "Stale counts only"
+are deliberately separate: a count can be stale in any of the four states, and
+how far a number can be trusted is not the same question as what it says.
+Folding the second into the first would be the same collapse this whole
+distinction exists to undo.
+
+The tiles do not change when the filter is applied. They describe the whole
+register; only the list below is narrowed, so a filter can never make the
+headline numbers lie.
 
 
 ===============================================================================
@@ -295,7 +403,7 @@ startup. CI on GitHub Actions covers linting, the API suite across three Python
 versions, the terminal client's suite, the migrations applied and rolled back
 against a real Postgres service, and the frontend's production build.
 
-100 automated tests. Stack: Python, FastAPI, SQLModel, Alembic, Postgres,
+108 automated tests. Stack: Python, FastAPI, SQLModel, Alembic, Postgres,
 TypeScript, Next.js, React, Docker, GitHub Actions.
 
 
@@ -303,12 +411,18 @@ TypeScript, Next.js, React, Docker, GitHub Actions.
 NOTES ON THE CAPTURES
 ===============================================================================
 
-- Captures 01 to 09 are real browser screenshots, taken by driving the running
-  dashboard with Playwright against the containerised stack.
+- Captures 01 to 09 and 16 are real browser screenshots, taken by driving the
+  running dashboard with Playwright against the containerised stack.
 
 - Captures 10 to 15 are terminal-styled renderings of the REAL output of those
-  commands, captured as they ran. The text was neither typed nor edited; only
-  the API key was redacted.
+  commands, captured as they ran. The text was neither typed nor edited. Where
+  output is filtered, the filter is visible in the command line above it, so
+  what is on screen is reproducible from what is on screen. The API key is
+  referenced as $env:HALCYON_API_KEY throughout and its value appears nowhere.
+
+- The whole set was retaken for this version. Captures 10 to 15 were rerun
+  against a stack booted from an empty volume, which is why capture 14 now
+  shows both migrations applying in order rather than one.
 
 - The operations behind captures 10 to 12 were performed through the API (curl)
   rather than the dashboard, so that psql output could be captured at the exact

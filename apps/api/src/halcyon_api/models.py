@@ -23,6 +23,11 @@ class ProductBase(SQLModel):
     name: str = Field(index=True, unique=True)
     category: str = Field(index=True)
     price: float = Field(index=True, ge=0)
+    # `stock` measures the shelf; `in_stock` is a decision about the line. All
+    # four combinations are legal and say different things, which is why neither
+    # is derived from the other and no constraint ties them together: 0 on an
+    # active line is an empty shelf to reorder, while 40 on a withdrawn line is
+    # stock that exists and must not be issued.
     stock: int = Field(index=True, ge=0)
     in_stock: bool = Field(index=True)
     rating: float = Field(index=True, ge=0, le=5)
@@ -52,4 +57,17 @@ class Product(ProductBase, table=True):
     updated_at: datetime = Field(
         default_factory=utcnow,
         sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+
+    # When the quantity was last established, which is not the same as when the
+    # row was last written: `updated_at` moves for a corrected price or a new
+    # tag, so it cannot tell a figure counted this morning from one counted six
+    # weeks ago. Only a change to `stock` moves this one.
+    #
+    # Nullable on purpose: NULL means nobody has established the quantity since
+    # the column existed. Backfilling it with a date that no count happened on
+    # would be inventing exactly the confidence this field exists to measure.
+    stock_counted_at: datetime | None = Field(
+        default_factory=utcnow,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
     )

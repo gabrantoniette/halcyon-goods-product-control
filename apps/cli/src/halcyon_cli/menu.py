@@ -80,7 +80,7 @@ def ask_product_fields(new=True):
         "category": ask_text(f"Enter {label}item category: "),
         "price": ask_float(f"Enter {label}unit cost: ", minimum=0),
         "stock": ask_int(f"Enter {label}quantity on hand: ", minimum=0),
-        "in_stock": ask_bool("Is the item available in the warehouse? (y/n): "),
+        "in_stock": ask_bool("Is the line in service? (n withdraws it, whatever the quantity) (y/n): "),
         "rating": ask_float(f"Enter {label}quality rating (0-5): ", minimum=0, maximum=5),
         "tags": ask_tags(f"Enter {label}item tags (comma-separated): "),
     }
@@ -97,8 +97,8 @@ def ask_patch_fields():
         fields["price"] = ask_float("Enter new unit cost: ", minimum=0)
     if ask_bool("Change the quantity on hand? (y/n): "):
         fields["stock"] = ask_int("Enter new quantity on hand: ", minimum=0)
-    if ask_bool("Change the stock status? (y/n): "):
-        fields["in_stock"] = ask_bool("Is the item available in the warehouse? (y/n): ")
+    if ask_bool("Withdraw or return the line to service? (y/n): "):
+        fields["in_stock"] = ask_bool("Is the line in service? (n withdraws it, whatever the quantity) (y/n): ")
     if ask_bool("Change the quality rating? (y/n): "):
         fields["rating"] = ask_float("Enter new quality rating (0-5): ", minimum=0, maximum=5)
     if ask_bool("Change the tags? (y/n): "):

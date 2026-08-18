@@ -13,21 +13,28 @@ from .models import ProductBase
 
 
 class ProductRead(ProductBase):
-    """What every endpoint answers with: the product plus its public identity."""
+    """What every endpoint answers with: the product plus its public identity.
+
+    `stock_counted_at` is read-only: the server derives it from what actually
+    changed, so a client cannot declare a quantity fresh by asserting a date.
+    """
 
     uuid: UUID
     created_at: datetime
     updated_at: datetime
+    stock_counted_at: datetime | None
 
-    @field_validator("created_at", "updated_at", mode="after")
+    @field_validator("created_at", "updated_at", "stock_counted_at", mode="after")
     @classmethod
-    def assume_utc(cls, value: datetime) -> datetime:
+    def assume_utc(cls, value: datetime | None) -> datetime | None:
         """Label a naive timestamp as UTC.
 
         Postgres gives these back timezone-aware, SQLite cannot and returns
         them naive. Everything is written as UTC, so labelling it here is what
         keeps the serialised contract identical on both backends.
         """
+        if value is None:
+            return None
         return value.replace(tzinfo=UTC) if value.tzinfo is None else value
 
 

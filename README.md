@@ -13,9 +13,10 @@ together: one HTTP contract, two interfaces — a web dashboard and a terminal m
 
 ![Stock overview](docs/screenshots/01-dashboard-overview-dark.png)
 
-The rest of the system — registering, updating and removing an item, the same
-three operations seen from Postgres, and the stack booting from an empty volume
-— is in [docs/screenshots](docs/screenshots), with each capture explained in
+The rest of the system — registering, updating and removing an item, the
+quantities nobody has confirmed lately, the same three operations seen from
+Postgres, and the stack booting from an empty volume — is in
+[docs/screenshots](docs/screenshots), with each capture explained in
 [DESCRIPTIONS.txt](docs/screenshots/DESCRIPTIONS.txt).
 
 **New to the project?** [docs/guide](docs/guide) walks through it from the
@@ -61,7 +62,7 @@ Tailwind v4 · Zod · Docker Compose.
 │   │   │   ├── routers/         HTTP translation only
 │   │   │   └── services/        the rules, and the domain errors
 │   │   ├── migrations/          Alembic
-│   │   ├── tests/               69 tests
+│   │   ├── tests/               77 tests
 │   │   ├── seed.py              an example catalogue, 100 products
 │   │   └── Dockerfile
 │   │
@@ -73,7 +74,7 @@ Tailwind v4 · Zod · Docker Compose.
 │   │   ├── lib/
 │   │   │   ├── api.ts           server-only client; holds the key
 │   │   │   ├── schemas.ts       Zod, mirroring the Pydantic models
-│   │   │   └── stock.ts         the low-stock rule
+│   │   │   └── stock.ts         the four stock states and the count-age rule
 │   │   └── Dockerfile
 │   │
 │   └── cli/                     the terminal client
@@ -213,18 +214,18 @@ that instruction if it has not.
 ## Tests
 
 ```bash
-cd apps/api && pytest      # 69
+cd apps/api && pytest      # 77
 cd apps/cli && pytest      # 31
 ruff check .
 cd apps/web && npm run typecheck && npm run lint && npm run build
 ```
 
-100 Python tests, none of which touch the network or a real database: every one
+108 Python tests, none of which touch the network or a real database: every one
 runs against SQLite held in memory, so each starts from an empty register.
 
 | File | What it pins down |
 |---|---|
-| `api/tests/test_products_api.py` | the endpoints, and the rules that keep names unambiguous |
+| `api/tests/test_products_api.py` | the endpoints, the rules that keep names unambiguous, and what may and may not move `stock_counted_at` |
 | `api/tests/test_pagination.py` | the counters, clamping, and that walking every page yields each item exactly once |
 | `api/tests/test_auth.py` | writes closed, reads open, and that the key is never echoed back |
 | `api/tests/test_health.py` | that the unauthenticated endpoint leaks neither the database URL nor the key |
@@ -243,29 +244,54 @@ production build.
 A back-office dashboard, so the **table is the default view** and the card grid
 is the alternative — the opposite of a storefront.
 
-Summary tiles (items registered, available, low stock, out of stock, stock
-value, average quality rating), an items-per-category chart, search, category
-and stock-status filters, sorting, and a card/table toggle. Items can be
-registered (`POST`), replaced (`PUT`), partially updated (`PATCH` — only changed
-fields are sent) and removed. Light and dark themes are both supported, applied
-before first paint so a reader who chose dark never sees a white flash.
+Summary tiles (items registered, available, low stock, out of stock, withdrawn,
+stale counts, stock value, average quality rating), an items-per-category chart,
+search, category and stock-status filters, a stale-count filter, sorting, and a
+card/table toggle. Items can be registered (`POST`), replaced (`PUT`), partially
+updated (`PATCH` — only changed fields are sent) and removed. Light and dark
+themes are both supported, applied before first paint so a reader who chose dark
+never sees a white flash.
 
 ### Stock status
 
-Three states, derived in one place (`stockState` in `lib/stock.ts`) so the
-tiles, the filter and the badges can never disagree:
+Four states, derived in one place (`stockState` in `lib/stock.ts`) so the tiles,
+the filter and the badges can never disagree:
 
-| State | Rule |
-|---|---|
-| Out of stock | `in_stock` is false **or** nothing on hand |
-| Low stock | `1 – 10` on hand — flagged for restocking |
-| Available | more than 10 on hand |
+| State | Rule | Reading |
+|---|---|---|
+| Available | in service, more than 10 on hand | fine |
+| Low stock | in service, `1 – 10` on hand | flagged for restocking |
+| Out of stock | in service, nothing on hand | a supply problem — reorder |
+| Withdrawn | `in_stock` is false, any quantity | a decision — do not issue, do not buy |
+
+The last two are kept apart on purpose. They are not the same event and they do
+not route to the same person: an empty shelf belongs to purchasing, while a
+withdrawn line has already been decided and is not a signal to buy anything — a
+withdrawn line can hold 40 units that exist and must not be issued. Collapsing
+them into one badge, which is what `!in_stock || stock === 0` did, left the
+screen unable to say which one it was looking at.
 
 The threshold is a warehouse rule, not an API field. Status is shown with an
 icon and a word alongside the colour, never colour alone: green and red are the
 pair colour-blind readers are least able to separate. The amber used for low
 stock is darkened for text, where the fill colour would not clear 4.5:1 on a
-light surface.
+light surface. Withdrawn is the only muted badge — a settled decision rather
+than an open problem, so putting it in an alarm colour would cost the other
+three their urgency.
+
+### How old the quantity is
+
+A separate question from what the quantity says, so it is a separate field, a
+separate column in the table and a separate filter in the toolbar.
+
+`stock_counted_at` records when the quantity was last established. `updated_at`
+cannot stand in for it: that moves whenever the row is written at all, so a
+corrected price would report a six-week-old count as fresh. Only a change to
+`stock` moves it — a write that restates the same quantity establishes nothing
+and deliberately does not count. It is nullable, and `null` means nobody has
+ever counted it, which is why the migration that added the column left existing
+rows null rather than inventing a date. Anything over 30 days, `null` included,
+is shown as stale.
 
 The category chart uses one hue for every bar — the categories are nominal, so
 shading them by size would double-encode the bar length as colour. Each bar is

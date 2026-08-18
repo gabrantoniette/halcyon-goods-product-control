@@ -21,6 +21,7 @@ PUBLIC_FIELDS = {
     "uuid",
     "created_at",
     "updated_at",
+    "stock_counted_at",
 }
 
 
@@ -226,6 +227,90 @@ def test_patch_rejects_renaming_onto_another_product(client, register):
 
 def test_patch_404s_when_the_product_does_not_exist(client):
     assert client.patch("/products/Ghost", json={"stock": 1}).status_code == 404
+
+
+# --------------------------------------------------------- count freshness
+#
+# `stock_counted_at` answers "how old is this quantity", which `updated_at`
+# cannot: that one moves for a corrected price. Only a change to the quantity
+# itself may move it, so most of these tests are about what must NOT move it.
+
+
+def test_registering_an_item_counts_it(client, register):
+    """Stating a quantity to register an item is a count, so it starts dated."""
+    stored = register()
+
+    assert stored["stock_counted_at"] is not None
+    assert stored["stock_counted_at"] >= stored["created_at"]
+
+
+def test_the_count_date_cannot_be_set_by_the_client(client, make_product):
+    """Otherwise a client could declare a quantity fresh without establishing it."""
+    product = make_product()
+    asserted = "2020-01-01T00:00:00Z"
+
+    body = client.post(
+        f"/products/{product['name']}", json={**product, "stock_counted_at": asserted}
+    ).json()
+
+    assert body["stock_counted_at"] != asserted
+
+
+def test_patching_the_quantity_counts_it(client, register):
+    stored = register(stock=42)
+
+    body = client.patch(f"/products/{stored['name']}", json={"stock": 7}).json()
+
+    assert body["stock_counted_at"] > stored["stock_counted_at"]
+
+
+def test_patching_the_quantity_to_the_same_figure_is_not_a_count(client, register):
+    """A write that restates the quantity establishes nothing new."""
+    stored = register(stock=42)
+
+    body = client.patch(f"/products/{stored['name']}", json={"stock": 42}).json()
+
+    assert body["stock_counted_at"] == stored["stock_counted_at"]
+    # The row was still touched, so the two dates now mean different things.
+    assert body["updated_at"] > stored["updated_at"]
+
+
+def test_patching_another_field_is_not_a_count(client, register):
+    stored = register()
+
+    body = client.patch(f"/products/{stored['name']}", json={"price": 1.0}).json()
+
+    assert body["stock_counted_at"] == stored["stock_counted_at"]
+
+
+def test_withdrawing_a_line_is_not_a_count(client, register):
+    """`in_stock` is a decision about the line, not a measurement of the shelf."""
+    stored = register(stock=40, in_stock=True)
+
+    body = client.patch(f"/products/{stored['name']}", json={"in_stock": False}).json()
+
+    assert body["stock"] == 40
+    assert body["stock_counted_at"] == stored["stock_counted_at"]
+
+
+def test_replacing_with_a_new_quantity_counts_it(client, register, make_product):
+    stored = register(stock=42)
+
+    replacement = make_product(name=stored["name"], stock=7)
+    body = client.put(f"/products/{stored['name']}", json=replacement).json()
+
+    assert body["stock_counted_at"] > stored["stock_counted_at"]
+
+
+def test_replacing_without_changing_the_quantity_is_not_a_count(client, register, make_product):
+    """A full-form submission that leaves the quantity alone is an edit, not a count."""
+    stored = register(stock=42)
+
+    replacement = make_product(name=stored["name"], stock=42, price=1.0)
+    body = client.put(f"/products/{stored['name']}", json=replacement).json()
+
+    assert body["price"] == 1.0
+    assert body["stock_counted_at"] == stored["stock_counted_at"]
 
 
 # ------------------------------------------------------------------ delete

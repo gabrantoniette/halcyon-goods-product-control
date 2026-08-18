@@ -30,13 +30,17 @@
   --accent-ink: #ffffff;
   --accent-soft: #e5ecfb;
 
-  /* Status. Reserved for stock state; never reused as a series colour. */
+  /* Status. Reserved for stock state; never reused as a series colour.
+     Neutral is for withdrawn: a settled decision rather than an open problem,
+     so it stays out of the alarm range the other three share. */
   --good: #17795e;
   --good-soft: #dcf2ea;
   --warning: #8a5a00;
   --warning-soft: #fbeed2;
   --critical: #b3261e;
   --critical-soft: #fbe3e1;
+  --neutral: #5b6270;
+  --neutral-soft: #e7e9ee;
 
   /* One hue for every bar: the categories are nominal, so shading them by
      size would double-encode the length as colour. */
@@ -69,6 +73,8 @@
     --warning-soft: #33270f;
     --critical: #f28b82;
     --critical-soft: #3a1c1a;
+    --neutral: #9aa2b1;
+    --neutral-soft: #23272f;
 
     --series: #6f9bef;
 
@@ -99,6 +105,8 @@
   --warning-soft: #33270f;
   --critical: #f28b82;
   --critical-soft: #3a1c1a;
+  --neutral: #9aa2b1;
+  --neutral-soft: #23272f;
 
   --series: #6f9bef;
 

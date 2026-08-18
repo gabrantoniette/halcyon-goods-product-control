@@ -6,6 +6,8 @@ export type Filters = {
   search: string;
   category: string;
   availability: string;
+  /** Kept apart from `availability`: how old a figure is, not what it says. */
+  staleOnly: boolean;
   sort: string;
 };
 
@@ -78,7 +80,24 @@ export function Toolbar({
           <option value="in">Available</option>
           <option value="low">Low stock</option>
           <option value="out">Out of stock</option>
+          <option value="withdrawn">Withdrawn</option>
         </select>
+      </label>
+
+      {/*
+        Its own control rather than a fifth entry in the status list. Staleness
+        is a different axis - a count can be stale in any of the four states -
+        and putting the two on one select would force a choice between them,
+        which is the collapse this whole distinction exists to undo.
+      */}
+      <label className="flex h-9 items-center gap-2 self-end text-sm">
+        <input
+          type="checkbox"
+          checked={filters.staleOnly}
+          onChange={(event) => set({ staleOnly: event.target.checked })}
+          className="h-4 w-4 accent-[var(--accent)]"
+        />
+        Stale counts only
       </label>
 
       <label className="flex flex-col gap-1">

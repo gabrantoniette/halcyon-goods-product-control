@@ -1,3 +1,4 @@
+import { CountAge } from "./count-age";
 import { StockBadge } from "./stock-badge";
 import { RowActions } from "./row-actions";
 import type { Product } from "@/lib/schemas";
@@ -29,7 +30,10 @@ export function ProductsCards({ products }: { products: Product[] }) {
 
           <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--ink-secondary)]">
             <StockBadge product={product} />
-            <span className="tnum">{product.stock} on hand</span>
+            {/* The count date follows the quantity directly, as in the table. */}
+            <span className="tnum">
+              {product.stock} on hand, <CountAge product={product} />
+            </span>
             <span className="tnum inline-flex items-center gap-1">
               <span aria-hidden="true" className="text-[var(--warning)]">
                 ★

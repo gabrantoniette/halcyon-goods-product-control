@@ -6,13 +6,15 @@
 
 ## The problem it solves
 
-A warehouse holds stock. Someone needs to answer four questions, quickly and
+A warehouse holds stock. Someone needs to answer five questions, quickly and
 without arguing about which spreadsheet is current:
 
 - What items are registered?
 - How many of each are on hand?
 - What is running low?
-- What is unavailable entirely?
+- What has run out, and what have we withdrawn? (Not the same question —
+  see [the database](04-the-database.md#two-fields-four-states).)
+- How old is each of those quantities?
 
 **Halcyon Goods is a fictional company**, invented so the project has a concrete
 shape rather than being an abstract CRUD exercise. The system is the internal

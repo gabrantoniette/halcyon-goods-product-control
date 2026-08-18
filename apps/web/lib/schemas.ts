@@ -18,6 +18,10 @@ export const productSchema = z.object({
   uuid: z.string(),
   created_at: z.string(),
   updated_at: z.string(),
+  // Nullable by design: null means nobody has established the quantity, which
+  // is a different claim from "established a long time ago" and is not the same
+  // as `updated_at`, which moves for any edit at all.
+  stock_counted_at: z.string().nullable(),
 });
 
 export type Product = z.infer<typeof productSchema>;
