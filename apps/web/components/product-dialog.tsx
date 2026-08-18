@@ -178,6 +178,12 @@ export function ProductDialog({
             />
           </Field>
 
+          {/*
+            This is the state of the line, not of the shelf. Unticking it does
+            not mean the item ran out - that is what a quantity of zero says -
+            it means the line is out of service and its remaining units are not
+            to be issued. The old label read as a restatement of the quantity.
+          */}
           <div className="sm:col-span-2">
             <label className="flex items-center gap-2 text-sm">
               <input
@@ -186,7 +192,10 @@ export function ProductDialog({
                 defaultChecked={product ? product.in_stock : true}
                 className="h-4 w-4 accent-[var(--accent)]"
               />
-              Item is available to issue from the warehouse
+              Line is in service
+              <span className="text-xs text-[var(--ink-muted)]">
+                untick to withdraw it, whatever the quantity on hand
+              </span>
             </label>
           </div>
 

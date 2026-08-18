@@ -19,7 +19,7 @@ registered is left untouched and a second run inserts nothing.
 import argparse
 import random
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from sqlalchemy import Engine, inspect, make_url
 from sqlmodel import Session, select
@@ -38,15 +38,27 @@ SEED = 20260814
 # both sides of it, and the web client owns the rule for its own badges.
 LOW_STOCK_THRESHOLD = 10
 
-# Enough of each state that the dashboard tiles, the stock filter and all
-# three badges have something to show.
-OUT_OF_STOCK = 12
+# Enough of each state that the dashboard tiles, the stock filter and all four
+# badges have something to show.
+#
+# Out of stock and withdrawn are dealt separately because they are separate
+# things: an empty shelf on a line still in service is a supply problem, while a
+# withdrawn line is a decision, and most withdrawn lines still have units on the
+# shelf. Collapsing them would leave the register unable to demonstrate the
+# distinction the dashboard draws.
+OUT_OF_STOCK = 9
+WITHDRAWN = 5
 LOW_STOCK = 18
 
-# Every fourth out-of-stock item keeps its quantity and is flagged unavailable
-# instead: a withdrawn line, which is the case `in_stock` exists to express and
-# the one a `stock == 0` check alone would miss.
-WITHDRAWN_EVERY = 4
+# Mirrors STALE_COUNT_DAYS in apps/web/lib/stock.ts, for the same reason the
+# low-stock threshold is duplicated: the seed has to know where the boundary is
+# to place products on both sides of it.
+STALE_COUNT_DAYS = 30
+
+# A register that has been running for a while has a tail of quantities nobody
+# has confirmed lately, and a few lines nobody has ever counted.
+STALE_COUNTS = 14
+NEVER_COUNTED = 3
 
 
 @dataclass(frozen=True)
@@ -218,20 +230,31 @@ def build_products() -> list[Product]:
 
     # The states are dealt from a fixed pool rather than rolled per product, so
     # the counts are exact instead of merely likely.
-    states = ["out"] * OUT_OF_STOCK + ["low"] * LOW_STOCK
+    states = ["out"] * OUT_OF_STOCK + ["withdrawn"] * WITHDRAWN + ["low"] * LOW_STOCK
     states += ["in"] * (len(entries) - len(states))
     rng.shuffle(states)
+
+    # Count freshness is dealt from its own pool, because it is an independent
+    # axis: a stale figure can sit on any of the four states, and an item being
+    # out of stock says nothing about when anyone last checked.
+    freshness = ["stale"] * STALE_COUNTS + [None] * NEVER_COUNTED
+    freshness += ["fresh"] * (len(entries) - len(freshness))
+    rng.shuffle(freshness)
 
     now = utcnow()
     products: list[Product] = []
 
-    for position, ((category, name), state) in enumerate(zip(entries, states, strict=True)):
+    for (category, name), state, age in zip(entries, states, freshness, strict=True):
         spec = CATALOGUE[category]
-        stock, in_stock = _stock_for(state, position, rng)
+        stock, in_stock = _stock_for(state, rng)
 
         # Spread over the last year and a half, so the register reads like one
-        # that grew rather than one written in a single second.
-        created_at = now - timedelta(days=rng.randint(0, 540), minutes=rng.randint(0, 1440))
+        # that grew rather than one written in a single second. A line dealt a
+        # stale count is given an age to match: a quantity cannot have been
+        # established before the item it describes existed, and clamping the
+        # count date afterwards would make the pooled totals inexact.
+        oldest = STALE_COUNT_DAYS + 1 if age == "stale" else 0
+        created_at = now - timedelta(days=rng.randint(oldest, 540), minutes=rng.randint(0, 1440))
 
         products.append(
             Product(
@@ -246,23 +269,47 @@ def build_products() -> list[Product]:
                 tags=sorted(rng.sample(spec.tags, rng.randint(1, 3))),
                 created_at=created_at,
                 updated_at=min(now, created_at + timedelta(days=rng.randint(0, 45))),
+                stock_counted_at=_counted_at(age, now, created_at, rng),
             )
         )
 
     return products
 
 
-def _stock_for(state: str, position: int, rng: random.Random) -> tuple[int, bool]:
-    """Quantity and availability for one of the three states the dashboard shows."""
+def _stock_for(state: str, rng: random.Random) -> tuple[int, bool]:
+    """Quantity and availability for one of the four states the dashboard shows."""
     if state == "out":
-        if position % WITHDRAWN_EVERY == 0:
-            return rng.randint(5, 60), False
-        return 0, False
+        # An empty shelf on a line still in service: something to reorder.
+        return 0, True
+
+    if state == "withdrawn":
+        # Taken out of service with units still on the shelf - the case a
+        # `stock == 0` check alone would miss entirely, and the reason the
+        # dashboard shows this apart from an empty shelf.
+        return rng.randint(5, 60), False
 
     if state == "low":
         return rng.randint(1, LOW_STOCK_THRESHOLD), True
 
     return rng.randint(LOW_STOCK_THRESHOLD + 1, 400), True
+
+
+def _counted_at(
+    age: str | None,
+    now: datetime,
+    created_at: datetime,
+    rng: random.Random,
+) -> datetime | None:
+    """When the quantity was last established, or None for one nobody has counted."""
+    if age is None:
+        return None
+
+    if age == "stale":
+        # Old enough to be flagged, but never older than the item itself.
+        days = min(rng.randint(STALE_COUNT_DAYS + 1, 300), (now - created_at).days)
+        return now - timedelta(days=max(days, 1))
+
+    return now - timedelta(days=rng.randint(0, STALE_COUNT_DAYS - 1), minutes=rng.randint(0, 1440))
 
 
 def require_schema(engine: Engine) -> None:

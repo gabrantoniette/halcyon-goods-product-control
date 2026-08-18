@@ -10,40 +10,77 @@
 
 ```
 product
-├── id           the internal primary key, never leaves the API
-├── uuid         a public identifier
-├── name         unique — this is how items are addressed
+├── id                 the internal primary key, never leaves the API
+├── uuid               a public identifier
+├── name               unique — this is how items are addressed
 ├── category
 ├── price
-├── stock        how many are on hand
-├── in_stock     whether it can be issued at all
-├── rating       0 to 5
-├── tags         a list
+├── stock              how many are on hand
+├── in_stock           whether the line is in service
+├── rating             0 to 5
+├── tags               a list
 ├── created_at
-└── updated_at
+├── updated_at         when the row was last written, for any reason
+└── stock_counted_at   when the quantity was last established
 ```
 
-Two of these are worth explaining.
+Three of these are worth explaining.
 
 **`name` is unique**, because items are addressed by name in the URL:
 `/products/Mechanical Keyboard 60%`. Registering or renaming into a name that
 already exists answers `409` rather than silently overwriting.
 
-**`in_stock` is separate from `stock` being zero.** They mean different things: a
-quantity of zero says the shelf is empty, while `in_stock = false` says the line
-has been withdrawn from service — which can be true even with 40 units sitting
-in the warehouse. A check on `stock == 0` alone would miss that case entirely.
+<a id="two-fields-four-states"></a>
 
-The dashboard derives three states from the pair:
+**`stock` and `in_stock` are two different facts, and give four states.**
+`stock` measures the shelf. `in_stock` records a decision about the line. All
+four combinations are legal and each says something different, which is why
+neither is derived from the other and no constraint ties them together:
 
-| State | Condition |
-|---|---|
-| Out of stock | `in_stock` is false, **or** `stock` is 0 |
-| Low stock | 10 or fewer on hand |
-| Available | everything else |
+| `in_stock` | `stock` | State | What it means |
+|---|---|---|---|
+| true | > 10 | Available | ready to issue |
+| true | 1–10 | Low stock | flagged for restocking |
+| true | 0 | **Out of stock** | empty shelf on a line still in service — **buy more** |
+| false | anything | **Withdrawn** | taken out of service — **do not buy, do not issue** |
+
+The last two rows are the ones worth being careful about. They look the same on
+a shelf and they are not the same event: an empty shelf is a supply problem that
+belongs to purchasing, while a withdrawn line is a decision that has already
+been taken and is not a signal to buy anything. A withdrawn line can hold 40
+units, and those units are stock that exists and must not be issued.
+
+The dashboard used to show both as one red "Out of stock" badge — the register
+could tell them apart and the screen could not. It now shows four states, with
+withdrawn deliberately in a muted colour rather than an alarm one: it is a
+settled decision, not an open problem.
 
 The threshold of 10 is a warehouse rule, not a database field, so it is defined
 once in the dashboard and derived from `stock` everywhere it is needed.
+
+**`stock_counted_at` is how old the quantity is**, and it exists because
+`updated_at` cannot answer that. `updated_at` moves whenever the row is written
+— a corrected price, a new tag — so it would report a quantity nobody has
+checked in six weeks as freshly updated. Only a change to `stock` moves
+`stock_counted_at`.
+
+A write that *restates* the same quantity deliberately does not count as a
+count: that is what a form submission does when someone edits a tag, and
+treating it as one would let a figure look established without anyone having
+gone to the shelf. Marking a real count stale is recoverable; marking a stale
+one fresh is the failure the column exists to prevent.
+
+The column is nullable, and `null` means nobody has established the quantity at
+all. That is a different claim from "established a long time ago", and it is why
+the migration that added the column left existing rows null instead of
+backfilling them from a date on which no count happened. The dashboard treats
+both as stale — an undated figure is not a fresh one — and flags anything older
+than 30 days.
+
+Note that this is a **separate axis** from the four states above: a count can be
+stale in any of them, and how much you trust a number is not the same question
+as what the number says. The dashboard keeps them as separate controls for the
+same reason.
 
 ---
 
@@ -128,8 +165,14 @@ deliberate:
 an identical register, so a screenshot or a bug report stays reproducible.
 
 **The stock states are dealt from a fixed pool** rather than rolled per product,
-so the counts are exact — 70 available, 18 low, 12 out — instead of merely
-likely. Every filter and every badge has something to show.
+so the counts are exact — 68 available, 18 low, 9 out of stock, 5 withdrawn —
+instead of merely likely. Every filter and every badge has something to show,
+and all five withdrawn lines carry units, because that is the case a `stock = 0`
+check alone would miss.
+
+**Count freshness is dealt from its own pool**, for the same reason it is its
+own axis: 14 quantities are older than the 30-day threshold and 3 have never
+been counted at all, spread across all four states rather than clustered in one.
 
 **Dates are spread across the previous 18 months.** This has a useful side
 effect: any recent timestamp is real activity rather than seeded data, which
@@ -189,6 +232,21 @@ where updated_at > now() - interval '1 day' order by updated_at desc;
 -- what is running low
 select name, stock from product
 where in_stock and stock <= 10 order by stock;
+
+-- what to reorder: an empty shelf on a line still in service. `in_stock` is
+-- what keeps withdrawn lines out of a purchasing list.
+select name, category from product
+where in_stock and stock = 0 order by name;
+
+-- withdrawn, and still holding units: stock that exists and must not be issued
+select name, stock, round((price * stock)::numeric, 2) as tied_up from product
+where not in_stock and stock > 0 order by tied_up desc;
+
+-- quantities nobody has confirmed lately, worst first. A null has never been
+-- counted at all, which is why it sorts ahead of the merely old ones.
+select name, stock, stock_counted_at from product
+where stock_counted_at is null or stock_counted_at < now() - interval '30 days'
+order by stock_counted_at nulls first;
 ```
 
 ---

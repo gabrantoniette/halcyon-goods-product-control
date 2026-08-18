@@ -1,3 +1,4 @@
+import { CountAge } from "./count-age";
 import { StockBadge } from "./stock-badge";
 import { RowActions } from "./row-actions";
 import type { Product } from "@/lib/schemas";
@@ -14,7 +15,8 @@ export function ProductsTable({ products }: { products: Product[] }) {
     <div className="overflow-x-auto rounded-xl border bg-[var(--surface-raised)] shadow-[var(--shadow-sm)]">
       <table className="w-full min-w-[720px] border-collapse text-sm">
         <caption className="visually-hidden">
-          Registered items with category, unit cost, quantity on hand and stock status
+          Registered items with category, unit cost, quantity on hand, when that quantity was last
+          counted, and stock status
         </caption>
         <thead>
           <tr className="border-b text-left text-xs text-[var(--ink-muted)]">
@@ -22,6 +24,10 @@ export function ProductsTable({ products }: { products: Product[] }) {
             <th scope="col" className="px-4 py-2.5 font-medium">Category</th>
             <th scope="col" className="px-4 py-2.5 text-right font-medium">Unit cost</th>
             <th scope="col" className="px-4 py-2.5 text-right font-medium">On hand</th>
+            {/* Directly beside the quantity it qualifies: a figure and its age
+                read as one fact, and separating them invites reading the first
+                without the second. */}
+            <th scope="col" className="px-4 py-2.5 font-medium">Counted</th>
             <th scope="col" className="px-4 py-2.5 font-medium">Stock status</th>
             <th scope="col" className="px-4 py-2.5 text-right font-medium">Rating</th>
             <th scope="col" className="px-4 py-2.5">
@@ -36,6 +42,9 @@ export function ProductsTable({ products }: { products: Product[] }) {
               <td className="px-4 py-2.5 text-[var(--ink-secondary)]">{product.category}</td>
               <td className="tnum px-4 py-2.5 text-right">{money.format(product.price || 0)}</td>
               <td className="tnum px-4 py-2.5 text-right">{product.stock}</td>
+              <td className="px-4 py-2.5 text-xs">
+                <CountAge product={product} />
+              </td>
               <td className="px-4 py-2.5">
                 <StockBadge product={product} />
               </td>

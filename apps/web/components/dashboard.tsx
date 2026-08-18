@@ -12,12 +12,13 @@ import { ToastProvider } from "./toasts";
 import { Toolbar, type Filters, type View } from "./toolbar";
 import { DialogContext, type Dialogs, type FormMode } from "./ui-context";
 import type { Product } from "@/lib/schemas";
-import { stockState, summarise } from "@/lib/stock";
+import { countAge, stockState, summarise } from "@/lib/stock";
 
 const INITIAL_FILTERS: Filters = {
   search: "",
   category: "all",
   availability: "all",
+  staleOnly: false,
   sort: "name-asc",
 };
 
@@ -108,6 +109,7 @@ function applyFilters(products: Product[], filters: Filters): Product[] {
   const matching = products.filter((product) => {
     if (filters.category !== "all" && product.category !== filters.category) return false;
     if (filters.availability !== "all" && stockState(product) !== filters.availability) return false;
+    if (filters.staleOnly && !countAge(product).stale) return false;
     if (!term) return true;
 
     const haystack = [product.name, product.category, ...product.tags].join(" ").toLowerCase();

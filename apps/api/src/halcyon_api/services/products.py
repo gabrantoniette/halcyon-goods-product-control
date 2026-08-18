@@ -101,10 +101,13 @@ def replace(session: Session, name: str, data: ProductUpdate) -> Product:
     product = get_by_name(session, name)
     reject_duplicate_name(session, data.name, keep_id=product.id)
 
+    # Read before the loop overwrites it.
+    counted = data.stock != product.stock
+
     for field, value in data.model_dump().items():
         setattr(product, field, value)
 
-    return _save(session, product)
+    return _save(session, product, counted=counted)
 
 
 def patch(session: Session, name: str, data: ProductPatch) -> Product:
@@ -123,10 +126,13 @@ def patch(session: Session, name: str, data: ProductPatch) -> Product:
     if "name" in changes:
         reject_duplicate_name(session, changes["name"], keep_id=product.id)
 
+    # Read before the loop overwrites it.
+    counted = "stock" in changes and changes["stock"] != product.stock
+
     for field, value in changes.items():
         setattr(product, field, value)
 
-    return _save(session, product)
+    return _save(session, product, counted=counted)
 
 
 def delete(session: Session, name: str) -> Product:
@@ -137,8 +143,24 @@ def delete(session: Session, name: str) -> Product:
     return product
 
 
-def _save(session: Session, product: Product) -> Product:
-    product.updated_at = utcnow()
+def _save(session: Session, product: Product, *, counted: bool = False) -> Product:
+    """Persist the row, bumping `updated_at` and — only on a count — the count date.
+
+    A write that restates the same quantity is deliberately not a count. It is
+    what a form submission does when someone edits a tag, and treating it as one
+    would let a figure look freshly established without anyone having gone to
+    the shelf. Marking a real count stale is recoverable; marking a stale one
+    fresh is the failure this column exists to prevent.
+
+    A new product is not routed through here for its first date: the model's
+    default gives it one at construction, because stating a quantity to register
+    an item is a count.
+    """
+    now = utcnow()
+    product.updated_at = now
+    if counted:
+        product.stock_counted_at = now
+
     session.add(product)
     session.commit()
     session.refresh(product)

@@ -1,4 +1,4 @@
-import { LOW_STOCK_THRESHOLD, type Summary } from "@/lib/stock";
+import { LOW_STOCK_THRESHOLD, STALE_COUNT_DAYS, type Summary } from "@/lib/stock";
 
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 const moneyCompact = new Intl.NumberFormat("en-US", {
@@ -9,16 +9,21 @@ const moneyCompact = new Intl.NumberFormat("en-US", {
 });
 
 /**
- * Six headline numbers. Each is a single figure, so it is a stat tile rather
+ * Eight headline numbers. Each is a single figure, so it is a stat tile rather
  * than a chart - a one-bar bar chart would say the same thing with more ink.
+ *
+ * The four state tiles say what the register holds; "Stale counts" says how far
+ * that can be trusted, and stays its own tile rather than being folded into the
+ * others because it measures the data, not the warehouse.
  */
 export function StatTiles({ summary }: { summary: Summary }) {
-  const { total, categories, counts, value, averageRating, ratedCount } = summary;
+  const { total, categories, counts, value, idleValue, staleCounts, averageRating, ratedCount } =
+    summary;
 
   return (
     <section
       aria-label="Stock summary"
-      className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6"
+      className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4"
     >
       <Tile
         label="Items registered"
@@ -38,7 +43,33 @@ export function StatTiles({ summary }: { summary: Summary }) {
       <Tile
         label="Out of stock"
         value={counts.out}
-        foot={<Mark tone="critical" glyph="✕" text="unavailable" />}
+        foot={<Mark tone="critical" glyph="✕" text="empty shelf, still in service" />}
+      />
+      <Tile
+        label="Withdrawn"
+        value={counts.withdrawn}
+        foot={
+          <Mark
+            tone="neutral"
+            glyph="⊘"
+            text={
+              idleValue > 0
+                ? `out of service, ${moneyCompact.format(idleValue)} still on hand`
+                : "out of service, not to be issued"
+            }
+          />
+        }
+      />
+      <Tile
+        label="Stale counts"
+        value={staleCounts}
+        foot={
+          staleCounts > 0 ? (
+            <Mark tone="warning" glyph="◷" text={`unconfirmed for ${STALE_COUNT_DAYS}+ days`} />
+          ) : (
+            `every quantity confirmed within ${STALE_COUNT_DAYS} days`
+          )
+        }
       />
       <Tile
         label="Stock value"
@@ -82,6 +113,7 @@ const TONES = {
   good: "text-[var(--good)]",
   warning: "text-[var(--warning)]",
   critical: "text-[var(--critical)]",
+  neutral: "text-[var(--neutral)]",
 } as const;
 
 function Mark({ tone, glyph, text }: { tone: keyof typeof TONES; glyph: string; text: string }) {

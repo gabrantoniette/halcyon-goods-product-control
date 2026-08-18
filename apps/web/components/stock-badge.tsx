@@ -5,6 +5,7 @@ const TONES = {
   good: "text-[var(--good)] bg-[var(--good-soft)]",
   warning: "text-[var(--warning)] bg-[var(--warning-soft)]",
   critical: "text-[var(--critical)] bg-[var(--critical-soft)]",
+  neutral: "text-[var(--neutral)] bg-[var(--neutral-soft)]",
 } as const;
 
 /**
@@ -12,6 +13,9 @@ const TONES = {
  * alone: green and red are the pair colour-blind readers are least able to
  * separate. The amber used for low stock is darkened for text, where the fill
  * colour would not clear 4.5:1 on a light surface.
+ *
+ * Four badges, not three. "Withdrawn" and "Out of stock" used to share this
+ * one, which meant the register could tell them apart and the screen could not.
  */
 export function StockBadge({ product }: { product: Product }) {
   const { tone, glyph, label } = STOCK_BADGE[stockState(product)];
