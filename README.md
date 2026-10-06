@@ -2,6 +2,11 @@
 
 [![CI](https://github.com/gabrantoniette/halcyon-goods-product-control/actions/workflows/ci.yml/badge.svg)](https://github.com/gabrantoniette/halcyon-goods-product-control/actions/workflows/ci.yml)
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/gabrantoniette/gabrantoniette/main/assets/generated/languages/halcyon-goods-product-control-dark.svg">
+  <img src="https://raw.githubusercontent.com/gabrantoniette/gabrantoniette/main/assets/generated/languages/halcyon-goods-product-control-light.svg" alt="Languages in halcyon-goods-product-control, by share of code">
+</picture>
+
 Internal back-office system for controlling a company's products and stock —
 **not a storefront**. There is no cart, no checkout and no customer-facing page.
 **Halcyon Goods** is a fictional company; this is the tool its staff would use to
